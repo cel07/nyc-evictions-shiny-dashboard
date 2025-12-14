@@ -1,0 +1,14 @@
+# Quarto
+.quarto/
+_site/
+index_files/
+*.quarto_ipynb
+
+# Python
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# OS/Editor
+.DS_Store
+.vscode/

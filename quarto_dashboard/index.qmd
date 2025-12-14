@@ -1,0 +1,1041 @@
+---
+title: "NYC Evictions Dashboard"
+subtitle: "Eviction Executions by NYC Marshals"
+author: "Christopher Legarda"
+logo: new-york-flag.png
+date: last-modified
+format:
+  dashboard:
+    theme: flatly
+    #orientation: rows # Or rows, depending on your preferred layout.
+    #page-layout: full
+    # Other dashboard-specific options:
+    # nav-content: [ "Tab 1", "Tab 2" ]
+    # tabset-paging: true
+    #scrolling: true
+    #sidebar: true
+    title-block-style: default
+server: shiny    
+execute:
+  echo: false
+  warning: false
+  message: false
+  cache: false
+engine: python
+---
+
+<!-- **Published:** {{< meta date >}} -->
+
+
+# 1
+
+```{python}
+# --- Dashboard Setup ---
+import os
+from pathlib import Path
+import pandas as pd
+import json
+
+# When running as a Quarto project, QUARTO_PROJECT_DIR points to quarto_dashboard/
+QUARTO_PROJECT_DIR = os.environ.get("QUARTO_PROJECT_DIR")
+
+# Your real project root is the parent of quarto_dashboard/
+if QUARTO_PROJECT_DIR:
+    PROJECT_ROOT = Path(QUARTO_PROJECT_DIR).resolve().parent
+else:
+    PROJECT_ROOT = Path.cwd().resolve().parent
+
+DATA_CLEAN_DIR = PROJECT_ROOT / "data_clean"
+DATA_FINAL_DIR = PROJECT_ROOT / "data_final"
+
+# --- Load data ---
+evictions_clean = pd.read_csv(
+    DATA_CLEAN_DIR / "evictions_clean.csv",
+    parse_dates=["executed_date"]
+)
+evictions_by_month = pd.read_csv(DATA_FINAL_DIR / "evictions_by_month.csv")
+evictions_by_borough = pd.read_csv(DATA_FINAL_DIR / "evictions_by_borough.csv")
+
+geojson_path = DATA_FINAL_DIR / "evictions_points.geojson"
+with open(geojson_path, "r", encoding="utf-8") as f:
+    evictions_points_geojson = json.load(f)
+
+# -------------------------------------------------------------------
+# --- Global anonymized marshal IDs (stable across all years/pages) ---
+# -------------------------------------------------------------------
+
+evictions_clean["marshal_full_name"] = (
+    evictions_clean["marshal_first_name"].fillna("").astype(str).str.strip()
+    + " "
+    + evictions_clean["marshal_last_name"].fillna("").astype(str).str.strip()
+).str.strip()
+
+all_unique_marshals = (
+    evictions_clean["marshal_full_name"]
+    .replace("", pd.NA)
+    .dropna()
+    .drop_duplicates()
+    .sort_values()
+    .reset_index(drop=True)
+)
+
+marshal_map_global = {
+    name: f"Marshal {i+1}"
+    for i, name in enumerate(all_unique_marshals)
+}
+
+evictions_clean["marshal_id"] = (
+    evictions_clean["marshal_full_name"]
+    .map(marshal_map_global)
+    .fillna("Unknown Marshal")
+)
+
+
+# import os
+# from pathlib import Path
+# import pandas as pd
+# import json
+
+# # When running as a Quarto project, QUARTO_PROJECT_DIR points to quarto_dashboard/
+# QUARTO_PROJECT_DIR = os.environ.get("QUARTO_PROJECT_DIR")
+
+# # Your real project root is the parent of quarto_dashboard/
+# if QUARTO_PROJECT_DIR:
+#     PROJECT_ROOT = Path(QUARTO_PROJECT_DIR).resolve().parent
+# else:
+#     # fallback when running manually
+#     PROJECT_ROOT = Path.cwd().resolve().parent
+
+# DATA_CLEAN_DIR = PROJECT_ROOT / "data_clean"
+# DATA_FINAL_DIR = PROJECT_ROOT / "data_final"
+
+# # Load data
+# evictions_clean = pd.read_csv(DATA_CLEAN_DIR / "evictions_clean.csv", parse_dates=["executed_date"])
+# evictions_by_month = pd.read_csv(DATA_FINAL_DIR / "evictions_by_month.csv")
+# evictions_by_borough = pd.read_csv(DATA_FINAL_DIR / "evictions_by_borough.csv")
+
+# geojson_path = DATA_FINAL_DIR / "evictions_points.geojson"
+# with open(geojson_path, "r", encoding="utf-8") as f:
+#     evictions_points_geojson = json.load(f)
+
+
+# #| echo: false
+# #| include: true
+# # --- Dashboard Setup ---
+
+# import os
+# import pandas as pd
+# import json
+# import matplotlib.pyplot as plt
+# from shiny.express import render, ui
+
+# # Paths relative to the quarto_dashboard/ folder
+# PROJECT_ROOT = os.path.dirname(os.getcwd())  # go up one level to the project root
+
+# DATA_CLEAN_DIR = os.path.join(PROJECT_ROOT, "data_clean")
+# DATA_FINAL_DIR = os.path.join(PROJECT_ROOT, "data_final")
+
+# # --- Load data ---
+
+# # Clean dataset (full detailed records)
+# evictions_clean_path = os.path.join(DATA_CLEAN_DIR, "evictions_clean.csv")
+# evictions_clean = pd.read_csv(evictions_clean_path, parse_dates=["executed_date"])
+
+# # Monthly aggregation
+# evictions_by_month_path = os.path.join(DATA_FINAL_DIR, "evictions_by_month.csv")
+# evictions_by_month = pd.read_csv(evictions_by_month_path)
+
+# # Borough/year aggregation
+# evictions_by_borough_path = os.path.join(DATA_FINAL_DIR, "evictions_by_borough.csv")
+# evictions_by_borough = pd.read_csv(evictions_by_borough_path)
+
+# # GeoJSON points
+# geojson_path = os.path.join(DATA_FINAL_DIR, "evictions_points.geojson")
+# with open(geojson_path, "r", encoding="utf-8") as f:
+#     evictions_points_geojson = json.load(f)
+
+# # Quick confirmation (silent because echo: false)
+# #len(evictions_clean), len(evictions_by_month), len(evictions_by_borough), len(evictions_points_geojson["features"])
+```
+
+<!-- ## Overview & Key Metrics -->
+
+```{python}
+# Total number of eviction records
+total_evictions = len(evictions_clean)
+
+# Time range
+date_min = evictions_clean["executed_date"].min()
+date_max = evictions_clean["executed_date"].max()
+
+# Number of boroughs represented
+num_boroughs = evictions_clean["borough"].nunique()
+
+# Residential vs Commercial share
+res_mask = evictions_clean["residential_commercial_ind"] == "Residential"
+res_share = res_mask.mean()
+comm_share = 1 - res_share
+```
+
+
+## Overview 
+
+This dashboard summarizes eviction executions carried out by New York City Marshals from 2017 to 2025. The metrics below give a quick snapshot of the scale and basic structure of the data.
+
+## Row {height="30%"} -->
+```{python}
+#| content: valuebox
+#| title: "Total Evictions"
+#| icon: building-x
+#| color: primary
+dict(
+  value   = f"{total_evictions:,}",
+  caption = "Total executed eviction records in the dataset"
+)
+```
+
+```{python}
+#| content: valuebox
+#| title: "Time Range"
+#| icon: calendar
+#| color: secondary
+dict(
+    value = f"{date_min.year} to {date_max.year}",
+    caption = "Earliest to latest executed_date"
+)
+
+```
+
+```{python}
+#| content: valuebox
+#| title: "Residential Share"
+#| icon: building
+#| color: success
+dict(
+    value   = f"{res_share * 100:.1f}%",
+    caption = "Evictions classified as Residential"
+)
+
+```
+
+```{python}
+#| content: valuebox
+#| title: "Commercial Share"
+#| icon: shop
+#| color: danger
+dict(
+    value   = f"{comm_share * 100:.1f}%",
+    caption = "Evictions classified as Commercial"
+)
+```
+
+## Row
+### Column
+<!-- ## Monthly Eviction Trends -->
+
+```{python}
+#| echo: false
+from shiny.express import input, render, ui
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import pandas as pd
+
+evictions_by_month["year_month_date"] = pd.to_datetime(evictions_by_month["year_month"])
+min_year = int(evictions_by_month["year"].min())
+max_year = int(evictions_by_month["year"].max())
+
+# Year range slider
+ui.input_slider(
+    "year_range",
+    "Year range:",
+    min=min_year,
+    max=max_year,
+    value=(min_year, max_year),
+    step=1,
+)
+
+@render.plot
+def monthly_evictions_plot():
+    start_year, end_year = input.year_range()
+
+    df = (
+        evictions_by_month
+        .loc[
+            (evictions_by_month["year"] >= start_year)
+            & (evictions_by_month["year"] <= end_year)
+        ]
+        .sort_values("year_month_date")
+    )
+
+    # Use a nicer style
+    plt.style.use("seaborn-v0_8-whitegrid")  # built-in style, no extra deps
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # Line with markers
+    ax.plot(
+        df["year_month_date"],
+        df["total_evictions"],
+        linewidth=2.0,
+        marker="o",
+        markersize=3,
+    )
+
+    # Titles and labels
+    ax.set_title(
+        "Monthly Evictions Executed by NYC Marshals",
+        fontsize=12,
+        fontweight="bold",
+        pad=12,
+    )
+    ax.set_xlabel("Month", fontsize=10)
+    ax.set_ylabel("Total Evictions", fontsize=10)
+
+    # Y axis formatting: commas for thousands
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, p: f"{int(x):,}"))
+
+    # Rotate date labels
+    fig.autofmt_xdate(rotation=45, ha="right")
+
+    # Slight background tweak
+    ax.set_facecolor("#f7f7f7")
+    fig.tight_layout()
+    return fig
+```
+
+<!-- ## Borough Chart -->
+
+```{python}
+#| echo: false
+from shiny.express import input, render, ui
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+
+years = sorted(evictions_by_borough["year"].unique())
+
+
+ui.input_select(
+    "year_select",
+    "Select year:",
+    choices=[str(y) for y in years],
+    selected=str(max(years)),
+)
+
+@render.plot
+def borough_evictions_by_year():
+    # input.year_select() returns a string, so convert to int
+    year = int(input.year_select())
+
+    df = (
+        evictions_by_borough[evictions_by_borough["year"] == year]
+        .copy()
+        .sort_values("total_evictions", ascending=False)
+    )
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    ax.bar(df["borough"], df["total_evictions"])
+
+    ax.set_title(
+        f"Evictions by Borough in {year}",
+        fontsize=12,
+        fontweight="bold",
+        pad=12,
+    )
+    ax.set_xlabel("Borough", fontsize=10)
+    ax.set_ylabel("Total Evictions", fontsize=10)
+
+    # Comma formatting for y axis
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, p: f"{int(x):,}"))
+
+    ax.set_facecolor("#f7f7f7")
+    fig.tight_layout()
+    return fig
+```
+
+
+### Column
+
+<!-- Table -->
+```{python}
+#| echo: false
+from shiny.express import input, render, ui
+import pandas as pd
+
+ui.h3("Marshal activity by year (anonymized)")
+
+table_years = sorted(evictions_clean["year"].unique())
+
+ui.input_select(
+    "table_year",
+    "Select year:",
+    choices=[str(y) for y in table_years],
+    selected=str(max(table_years)),
+)
+
+@render.data_frame
+def marshal_table():
+    year = int(input.table_year())
+
+    # Filter to selected year
+    df = evictions_clean[evictions_clean["year"] == year].copy()
+
+    # Create a unique marshal identifier (first + last)
+    df["marshal_full_name"] = (
+        df["marshal_first_name"].fillna("") + " " +
+        df["marshal_last_name"].fillna("")
+    ).str.strip()
+
+    # Create a stable anonymized mapping per year
+    unique_marshals = (
+        df["marshal_full_name"]
+        .drop_duplicates()
+        .sort_values()
+        .reset_index(drop=True)
+    )
+
+    marshal_map = {
+        name: f"Marshal {i+1}"
+        for i, name in enumerate(unique_marshals)
+    }
+
+    df["marshal_id"] = df["marshal_full_name"].map(marshal_map)
+
+    # Group by anonymized marshal + attributes
+    grouped = (
+        df.groupby(
+            [
+                "marshal_id",
+                "residential_commercial_ind",
+                "ejectment",
+                "eviction_possession",
+            ],
+            dropna=False,
+        )
+        .size()
+        .reset_index(name="eviction_count")
+        .sort_values("eviction_count", ascending=False)
+    )
+
+    # Top 20 rows (adjust if you want)
+    top = grouped.head(20)
+
+    return render.DataTable(top)
+
+
+# #| echo: false
+# from shiny.express import input, render, ui
+# import pandas as pd
+
+# ui.h3("Marshal activity by year")
+
+# table_years = sorted(evictions_clean["year"].unique())
+
+# ui.input_select(
+#     "table_year",
+#     "Select year:",
+#     choices=[str(y) for y in table_years],
+#     selected=str(max(table_years)),
+# )
+
+# @render.data_frame
+# def marshal_table():
+#     year = int(input.table_year())
+
+#     # Filter to that year
+#     df = evictions_clean[evictions_clean["year"] == year].copy()
+
+#     # Group by marshal + key attributes and count records
+#     grouped = (
+#         df.groupby(
+#             [
+#                 "marshal_first_name",
+#                 "marshal_last_name",
+#                 "residential_commercial_ind",
+#                 "ejectment",
+#                 "eviction_possession",
+#             ],
+#             dropna=False,
+#         )
+#         .size()
+#         .reset_index(name="eviction_count")
+#         .sort_values("eviction_count", ascending=False)
+#     )
+
+#     # Optionally limit to top N rows
+#     top = grouped.head(20)
+
+#     # Shiny table
+#     return render.DataTable(top)
+```
+
+<!-- ## Map of Evictions -->
+
+```{python}
+#| echo: false
+from shiny.express import input, ui
+from shinywidgets import render_widget
+from ipyleaflet import Map, CircleMarker, WidgetControl, basemaps
+import ipywidgets as widgets
+import numpy as np
+
+ui.h2("ZIP-Code Evictions Map")
+
+geo_df = evictions_clean[
+    evictions_clean["has_geo"] & evictions_clean["eviction_zip"].notna()
+].copy()
+
+map_years = sorted(geo_df["year"].unique())
+borough_choices = sorted(geo_df["borough"].str.upper().unique())
+
+ui.input_select(
+    "map_year",
+    "Select year:",
+    choices=[str(y) for y in map_years],
+    selected=str(max(map_years)),
+)
+
+ui.input_select(
+    "map_borough",
+    "Select borough:",
+    choices=["All"] + borough_choices,
+    selected="All",
+)
+
+
+def value_to_color(value, thresholds):
+    """
+    Map eviction count into 4 discrete color buckets using thresholds.
+    thresholds = (t1, t2, t3) are approx quartiles.
+    """
+    t1, t2, t3 = thresholds
+    if value <= t1:
+        return "#c7d5ff"  # light
+    elif value <= t2:
+        return "#7c9bff"  # light / mid
+    elif value <= t3:
+        return "#4c6fff"  # mid / dark
+    else:
+        return "#1b00a6"  # darkest
+
+
+@render_widget
+def zip_map():
+    year = int(input.map_year())
+    boro_sel = input.map_borough()
+
+    df = geo_df[geo_df["year"] == year].copy()
+    df["borough"] = df["borough"].str.upper()
+
+    if boro_sel != "All":
+        df = df[df["borough"] == boro_sel]
+
+    # Empty fallback
+    if df.empty:
+        m = Map(center=(40.7128, -74.0060), zoom=10, basemap=basemaps.CartoDB.Positron)
+        m.layout.height = "500px"
+        return m
+
+    # Group by ZIP: center = mean lat/lon, value = number of evictions
+    zip_agg = (
+        df.groupby("eviction_zip")
+        .agg(
+            total_evictions=("executed_date", "size"),
+            lat=("latitude", "mean"),
+            lon=("longitude", "mean"),
+        )
+        .reset_index()
+    )
+
+    # Drop rows with missing or NaN coordinates just in case
+    zip_agg = zip_agg.replace([np.inf, -np.inf], np.nan).dropna(subset=["lat", "lon"])
+
+    if zip_agg.empty:
+        m = Map(center=(40.7128, -74.0060), zoom=10, basemap=basemaps.CartoDB.Positron)
+        m.layout.height = "500px"
+        return m
+
+    m = Map(center=(40.7128, -74.0060), zoom=10, basemap=basemaps.CartoDB.Positron)
+    m.layout.height = "500px"
+
+    vmin = zip_agg["total_evictions"].min()
+    vmax = zip_agg["total_evictions"].max()
+
+    # 4 buckets using quartiles (25%, 50%, 75%)
+    q1, q2, q3 = zip_agg["total_evictions"].quantile([0.25, 0.5, 0.75])
+    t1, t2, t3 = int(q1), int(q2), int(q3)
+    thresholds = (t1, t2, t3)
+
+    # Legend with numeric ranges
+    legend_html = widgets.HTML(
+        value=(
+            f"<b>Evictions by ZIP, {year}"
+            + ("" if boro_sel == "All" else f" – {boro_sel.title()}")
+            + "</b><br>"
+            f"<span style='background:#c7d5ff;'>&nbsp;&nbsp;&nbsp;</span> ≤ {t1:,}<br>"
+            f"<span style='background:#7c9bff;'>&nbsp;&nbsp;&nbsp;</span> {t1+1:,} – {t2:,}<br>"
+            f"<span style='background:#4c6fff;'>&nbsp;&nbsp;&nbsp;</span> {t2+1:,} – {t3:,}<br>"
+            f"<span style='background:#1b00a6;'>&nbsp;&nbsp;&nbsp;</span> > {t3:,}"
+        )
+    )
+    legend_html.layout.margin = "10px"
+    legend_html.layout.padding = "6px"
+    legend_html.layout.border = "1px solid #ccc"
+    legend_html.layout.background = "white"
+
+    m.add_control(WidgetControl(widget=legend_html, position="topright"))
+
+    for _, row in zip_agg.iterrows():
+        total = row["total_evictions"]
+        lat = row["lat"]
+        lon = row["lon"]
+        zip_code = row["eviction_zip"]
+
+        color = value_to_color(total, thresholds)
+
+        # radius scaled by volume, but capped
+        if vmax > 0:
+            radius = 6 + (total / vmax) * 18
+        else:
+            radius = 6
+        radius = int(radius)
+
+        popup_widget = widgets.HTML(
+            value=(
+                (f"<b>{boro_sel.title()}</b><br>" if boro_sel != "All" else "")
+                + f"ZIP: {zip_code}<br>"
+                + f"Year: {year}<br>"
+                + f"Total evictions: {int(total):,}"
+            )
+        )
+
+        circle = CircleMarker(
+            location=(lat, lon),
+            radius=radius,
+            color=color,
+            fill_color=color,
+            fill_opacity=0.85,
+            popup=popup_widget,
+        )
+        m.add_layer(circle)
+
+    return m
+```
+
+# 2
+
+## Row
+### Column
+
+```{python}
+#| echo: false
+from shiny.express import input, render, ui
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import pandas as pd
+
+ui.h3("Seasonality: Monthly Evictions vs Multi-Year Average")
+
+if "month" not in evictions_by_month.columns:
+    evictions_by_month["month"] = pd.to_datetime(
+        evictions_by_month["year_month"]
+    ).dt.month
+
+month_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+season_years = sorted(evictions_by_month["year"].unique())
+
+ui.input_select(
+    "season_year",
+    "Select year:",
+    choices=[str(y) for y in season_years],
+    selected=str(max(season_years)),
+)
+
+@render.plot
+def seasonality_plot():
+    year = int(input.season_year())
+
+    df = evictions_by_month.copy()
+
+    # Compute multi-year average per month
+    avg_month = (
+        df.groupby("month", as_index=False)["total_evictions"]
+        .mean()
+        .rename(columns={"total_evictions": "avg_evictions"})
+    )
+
+    # Data for selected year
+    df_year = (
+        df[df["year"] == year]
+        .groupby("month", as_index=False)["total_evictions"]
+        .sum()
+    )
+
+    # Merge to make sure both have all months 1–12
+    base = pd.DataFrame({"month": range(1, 13)})
+    avg_month = base.merge(avg_month, on="month", how="left")
+    df_year = base.merge(df_year, on="month", how="left").fillna(0)
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    # Plot multi-year average
+    ax.plot(
+        avg_month["month"],
+        avg_month["avg_evictions"],
+        label="Multi-year average",
+        linestyle="--",
+        linewidth=2,
+    )
+
+    # Plot selected year's monthly totals
+    ax.plot(
+        df_year["month"],
+        df_year["total_evictions"],
+        label=f"{year}",
+        marker="o",
+        linewidth=2,
+    )
+
+    ax.set_title(
+        f"Monthly Evictions in {year} vs Multi-Year Average",
+        fontsize=12,
+        fontweight="bold",
+        pad=12,
+    )
+    ax.set_xlabel("Month", fontsize=10)
+    ax.set_ylabel("Total Evictions", fontsize=10)
+
+    # Nice x-axis labels: Jan–Dec
+    ax.set_xticks(range(1, 13))
+    ax.set_xticklabels(month_labels)
+
+    # Y axis with commas
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, p: f"{int(x):,}"))
+
+    ax.legend()
+    ax.set_facecolor("#f7f7f7")
+    fig.tight_layout()
+    return fig
+```
+
+
+<!-- Ejectment bar chart -->
+
+```{python}
+#| echo: false
+from shiny.express import input, render, ui
+import matplotlib.pyplot as plt
+
+ui.h3("Ejectment vs Non-Ejectment Cases")
+
+eject_years = sorted(evictions_clean["year"].dropna().unique())
+
+ui.input_select(
+    "eject_year",
+    "Select year:",
+    choices=[str(y) for y in eject_years],
+    selected=str(max(eject_years)),
+)
+
+@render.plot
+def ejectment_plot():
+    year = int(input.eject_year())
+
+    # Safety: make sure column exists
+    if "ejectment_standardized" not in evictions_clean.columns:
+        fig, ax = plt.subplots(figsize=(6, 3))
+        ax.text(
+            0.5,
+            0.5,
+            "Column 'ejectment_standardized' not found in evictions_clean",
+            ha="center",
+            va="center",
+            wrap=True,
+        )
+        ax.axis("off")
+        return fig
+
+    # Filter to selected year
+    df = evictions_clean[evictions_clean["year"] == year].copy()
+
+    if df.empty:
+        fig, ax = plt.subplots(figsize=(6, 3))
+        ax.text(
+            0.5,
+            0.5,
+            f"No records for year {year}",
+            ha="center",
+            va="center",
+        )
+        ax.axis("off")
+        return fig
+
+    # Count by ejectment type -> guarantees columns 'Type' and 'Count'
+    counts = (
+        df["ejectment_standardized"]
+        .value_counts()
+        .rename_axis("Type")
+        .reset_index(name="Count")
+    )
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(8, 4))
+
+    ax.barh(counts["Type"], counts["Count"])
+
+    ax.set_title(
+        f"Ejectment vs Non-Ejectment Cases in {year}",
+        fontsize=12,
+        fontweight="bold",
+        pad=10,
+    )
+    ax.set_xlabel("Number of Cases", fontsize=10)
+    ax.set_ylabel("Type", fontsize=10)
+
+    # Add value labels on bars
+    max_count = counts["Count"].max()
+    for i, v in enumerate(counts["Count"]):
+        ax.text(v + max_count * 0.01, i, f"{int(v):,}", va="center")
+
+    fig.tight_layout()
+    return fig
+```
+
+### Column
+
+```{python}
+#| echo: false
+from shiny.express import ui, input, render
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
+import pandas as pd
+
+ui.h3("Borough Evictions Over Time")
+
+df = evictions_by_borough.copy()
+df["borough"] = df["borough"].str.upper()
+
+df_year_boro = (
+    df.groupby(["year", "borough"], as_index=False)["total_evictions"]
+    .sum()
+)
+
+borough_order = ["BRONX", "BROOKLYN", "MANHATTAN", "QUEENS", "STATEN ISLAND"]
+borough_colors = {
+    "BRONX": "#3a6fc5ff",
+    "BROOKLYN": "#36c758ff",
+    "MANHATTAN": "#cf363bff",
+    "QUEENS": "#b4c728ff",
+    "STATEN ISLAND": "#d447b6ff",
+}
+
+pivot = (
+    df_year_boro.pivot_table(
+        index="year",
+        columns="borough",
+        values="total_evictions",
+        aggfunc="sum",
+    )
+    .reindex(columns=borough_order)
+    .fillna(0)
+    .sort_index()
+)
+
+min_year = int(pivot.index.min())
+max_year = int(pivot.index.max())
+
+ui.input_slider(
+    "area_year_range",
+    "Select Year Range:",
+    min=min_year,
+    max=max_year,
+    value=(min_year, max_year),
+    step=1,
+)
+
+@render.plot
+def borough_overlapping_area():
+    start_year, end_year = input.area_year_range()
+
+    data = pivot.loc[start_year:end_year]
+
+    # Order boroughs by total volume across the selected range (small → large)
+    borough_draw_order = (
+        data.sum(axis=0)
+        .sort_values(ascending=False)  # largest -> smallest
+        .index
+        .tolist()
+    )
+
+
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    x = data.index
+
+    # Draw smaller boroughs first, larger last (so big ones overlay)
+    for boro in borough_draw_order:
+        y = data[boro].values
+        ax.fill_between(
+            x,
+            0,
+            y,
+            label=boro.title(),
+            color=borough_colors.get(boro, None),
+            alpha=0.80,   # transparency so overlap is visible
+            linewidth=1.0,
+        )
+        ax.plot(
+            x,
+            y,
+            color=borough_colors.get(boro, None),
+            linewidth=1.2,
+            alpha=0.8,
+        )
+
+    ax.set_title(
+        f"Borough Evictions Over Time ({start_year}–{end_year})",
+        fontsize=12,
+        fontweight="bold",
+        pad=12,
+    )
+    ax.set_xlabel("Year", fontsize=10)
+    ax.set_ylabel("Total Evictions", fontsize=10)
+
+    ax.yaxis.set_major_formatter(mtick.FuncFormatter(lambda x, p: f"{int(x):,}"))
+
+    # Put legend outside so it doesn't cover the chart
+    ax.legend(title="Borough", loc="upper left", bbox_to_anchor=(1.02, 1.0), borderaxespad=0)
+
+    ax.set_facecolor("#f7f7f7")
+    fig.tight_layout()
+    return fig
+```
+
+
+```{python}
+#| echo: false
+from shiny.express import ui, input, render
+import matplotlib.pyplot as plt
+
+ui.h3("Residential vs Commercial Evictions")
+
+rc_years = sorted(evictions_clean["year"].dropna().unique())
+
+ui.input_select(
+    "rc_year_donut",
+    "Select year:",
+    choices=[str(y) for y in rc_years],
+    selected=str(max(rc_years)),
+)
+
+@render.plot
+def res_comm_donut():
+    year = int(input.rc_year_donut())
+    df = evictions_clean[evictions_clean["year"] == year].copy()
+
+    counts = (
+        df["residential_commercial_ind"]
+        .value_counts()
+        .rename_axis("Type")
+        .reset_index(name="Count")
+    )
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    wedges, texts, autotexts = ax.pie(
+        counts["Count"],
+        labels=counts["Type"],
+        autopct=lambda p: f"{p:.1f}%",
+        startangle=90,
+        wedgeprops={"width": 0.45},  # donut hole
+    )
+
+    ax.set_title(
+        f"Residential vs Commercial Evictions in {year}",
+        fontsize=12,
+        fontweight="bold",
+        pad=10,
+    )
+
+    ax.axis("equal")
+    fig.tight_layout()
+    return fig
+```
+
+# Data
+<!-- ## Detailed Eviction Records -->
+
+```{python}
+#| echo: false
+from shiny.express import render
+import pandas as pd
+
+table_columns = [
+    "executed_date",
+    "year",
+    "borough",
+    "eviction_address",
+    "eviction_apt_num",
+    "eviction_zip",
+    "nta",
+    "residential_commercial_ind",
+    "ejectment_standardized",
+    "eviction_possession",
+    "marshal_id",   # <- anonymized ID
+]
+
+evictions_table = (
+    evictions_clean[table_columns]
+    .sort_values("executed_date", ascending=False)
+    .reset_index(drop=True)
+)
+
+@render.data_frame
+def evictions_df():
+    return render.DataTable(evictions_table)
+
+# #| echo: false
+# from shiny.express import render
+# import pandas as pd
+
+# table_columns = [
+#     "executed_date",
+#     "year",
+#     "borough",
+#     "eviction_address",
+#     "eviction_apt_num",
+#     "eviction_zip",
+#     "nta",
+#     "residential_commercial_ind",
+#     "ejectment_standardized",
+#     "eviction_possession",
+#     "marshal_first_name",
+#     "marshal_last_name",
+# ]
+
+# evictions_table = (
+#     evictions_clean[table_columns]
+#     .sort_values("executed_date", ascending=False)
+#     .reset_index(drop=True)
+# )
+
+# @render.data_frame
+# def evictions_df():
+#     return render.DataTable(evictions_table)
+```
+
+::: {.callout-note}
+**Data source:** NYC Open Data  
+https://data.cityofnewyork.us/City-Government/Evictions/6z8x-wfk4/about_data
+
+The data dictionary and field definitions are available at the link above.
+
+**Note:** This dashboard is not updated in real time.  
+All analyses reflect the state of the dataset at the time the dashboard was published.
+:::
