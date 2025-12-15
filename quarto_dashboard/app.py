@@ -1,14 +1,18 @@
 from pathlib import Path
 import pandas as pd
 
-from shiny import App, ui, render
+from shiny import App, ui
 
-# Paths (data folders live inside quarto_dashboard for deployment)
+# IMPORTANT: always resolve paths relative to THIS file
 APP_DIR = Path(__file__).resolve().parent
+
 DATA_CLEAN_DIR = APP_DIR / "data_clean"
 DATA_FINAL_DIR = APP_DIR / "data_final"
 
-evictions_clean = pd.read_csv(DATA_CLEAN_DIR / "evictions_clean.csv", parse_dates=["executed_date"])
+evictions_clean = pd.read_csv(
+    DATA_CLEAN_DIR / "evictions_clean.csv",
+    parse_dates=["executed_date"],
+)
 evictions_by_month = pd.read_csv(DATA_FINAL_DIR / "evictions_by_month.csv")
 evictions_by_borough = pd.read_csv(DATA_FINAL_DIR / "evictions_by_borough.csv")
 
