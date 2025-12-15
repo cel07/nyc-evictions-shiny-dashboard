@@ -1,31 +1,32 @@
 # NYC Evictions Shiny Dashboard
 
 An interactive data dashboard analyzing **NYC eviction executions carried out by NYC Marshals (2017–2025)**.  
-Built with **Python, Quarto, and Shiny**, and deployed on **Posit Connect Cloud**.
+Built with **Python, Quarto, and Shiny**, and deployed as a **server-backed application** on Posit Connect Cloud.
 
 ---
 
 ## 🔗 Live Dashboard
 
 👉 **View the interactive dashboard:**  
-[https://019b23c2-e6a2-a8d2-5863-12c506b45aad.share.connect.posit.cloud/](REPLACE_THIS_LINK)
+https://019b23c2-e6a2-a8d2-5863-12c506b45aad.share.connect.posit.cloud/
 
-*(Dashboard is interactive and server-backed — not a static report.)*
+*(This is a live Shiny application — not a static report.)*
 
 ---
 
-## 📊 What This Dashboard Shows
+## 📊 Project Overview
 
-The dashboard explores patterns and trends in NYC eviction executions, including:
+This dashboard explores patterns and trends in NYC eviction executions, with an emphasis on clarity and public-sector relevance.
 
-- Monthly eviction trends over time
-- Evictions by borough and year
-- Residential vs commercial evictions
-- Ejectment vs non-ejectment cases
-- Marshal activity (anonymized for privacy)
+Key questions explored include:
+- How eviction activity has changed over time
+- Differences in eviction volume across boroughs
+- Residential vs. commercial eviction composition
+- Ejectment vs. non-ejectment cases
 - Seasonal patterns in eviction activity
+- Marshal activity patterns (names anonymized for privacy)
 
-The goal is to make complex public housing data **accessible, interpretable, and policy-relevant**.
+The goal is to make complex housing data **accessible, interpretable, and policy-relevant** for a non-technical audience.
 
 ---
 
@@ -34,14 +35,33 @@ The goal is to make complex public housing data **accessible, interpretable, and
 - **NYC Open Data – Evictions Dataset**  
   https://data.cityofnewyork.us/City-Government/Evictions/6z8x-wfk4
 
-> Note: The dashboard reflects data available at the time of publication and is **not live-updating**.
+> Note: The dashboard reflects the dataset as of the time of publication and does **not** live-update.
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Tech Stack & Libraries
 
-- **Python** (pandas, matplotlib, plotly)
-- **Shiny for Python**
-- **Quarto Dashboards**
-- **Posit Connect Cloud** (hosting)
-- **Git & GitHub** (version control)
+**Languages & Frameworks**
+- Python
+- Shiny for Python
+- Quarto Dashboards
+
+**Data & Analysis**
+- pandas
+- NumPy
+
+**Visualization**
+- matplotlib
+- Plotly
+
+**Deployment**
+- Posit Connect Cloud
+- Git & GitHub for version control
+
+---
+
+## 🚀 Deployment Notes
+
+- The dashboard is rendered locally with Quarto and compiled into a Shiny application (`app.py`)
+- The Shiny app is deployed to **Posit Connect Cloud**, enabling full interactivity and server-side execution
+- Marshal names are anonymized to protect privacy while preserving analytical value
