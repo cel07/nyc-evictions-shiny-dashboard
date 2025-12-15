@@ -8,7 +8,7 @@ Built with **Python, Quarto, and Shiny**, and deployed on **Posit Connect Cloud*
 ## 🔗 Live Dashboard
 
 👉 **View the interactive dashboard:**  
-[https://connect.posit.cloud/your-username/nyc-evictions-dashboard](REPLACE_THIS_LINK)
+[https://019b23c2-e6a2-a8d2-5863-12c506b45aad.share.connect.posit.cloud/](REPLACE_THIS_LINK)
 
 *(Dashboard is interactive and server-backed — not a static report.)*
 
