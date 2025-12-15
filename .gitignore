@@ -12,11 +12,8 @@ index.html
 # Notebooks (do not publish)
 *.ipynb
 
-# Auto-generated app files / backups
-app.py
+# Auto-generated backups only
 app_backup.py
-*_backup.py
-*.bak
 
 # Python junk
 __pycache__/
