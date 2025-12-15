@@ -56,9 +56,9 @@ evictions_clean = pd.read_csv(
 evictions_by_month = pd.read_csv(DATA_FINAL_DIR / "evictions_by_month.csv")
 evictions_by_borough = pd.read_csv(DATA_FINAL_DIR / "evictions_by_borough.csv")
 
-geojson_path = DATA_FINAL_DIR / "evictions_points.geojson"
-with open(geojson_path, "r", encoding="utf-8") as f:
-    evictions_points_geojson = json.load(f)
+# geojson_path = DATA_FINAL_DIR / "evictions_points.geojson"
+# with open(geojson_path, "r", encoding="utf-8") as f:
+#     evictions_points_geojson = json.load(f)
 
 # -------------------------------------------------------------------
 # --- Global anonymized marshal IDs (stable across all years/pages) ---
