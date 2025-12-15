@@ -1,12 +1,22 @@
-# Quarto / Jupyter artifacts
+# Quarto / rendered output
 .quarto/
 _site/
 index_files/
 *.quarto_ipynb
+index.html
 
-# Jupyter cache from Quarto / jupyter-cache
+# Jupyter cache (Quarto / jupyter-cache)
 .jupyter_cache/
 **/.jupyter_cache/
+
+# Notebooks (do not publish)
+*.ipynb
+
+# Auto-generated app files / backups
+app.py
+app_backup.py
+*_backup.py
+*.bak
 
 # Python junk
 __pycache__/
