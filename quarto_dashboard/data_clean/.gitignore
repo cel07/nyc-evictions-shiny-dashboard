@@ -1,0 +1,17 @@
+# Quarto / Jupyter artifacts
+.quarto/
+_site/
+index_files/
+*.quarto_ipynb
+
+# Jupyter cache from Quarto / jupyter-cache
+.jupyter_cache/
+**/.jupyter_cache/
+
+# Python junk
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
